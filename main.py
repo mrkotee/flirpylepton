@@ -3,7 +3,6 @@ import sys
 import numpy as np
 import cv2
 from pylepton import Lepton
-import smbus
 from i2cLepton import LeptonI2C
 
 
@@ -17,22 +16,17 @@ finded_points = []
 def capture(flip_v = False, device = "/dev/spidev0.0"):
   global finded_points
   with Lepton(device) as l:
-    #l.get_cam_temp()
     a,_ = l.capture(debug_print =False)
     print(f"{len(a)=} {len(a[0])=} {len(a[0][2])=}")
     temp = get_cam_temp()
     for k1, i in enumerate(a):
       for k2, i2 in enumerate(i):
         for k3, i3 in enumerate(i2):
-          #if (i3*0.03385 - 276.96) > -5:
-          #  print(i3, "- ", i3*0.03385 - 276.96)
           finded_points.append((k1, k2, int(i3*0.03385 - 276.96)+temp))
-    #print(a)
   if flip_v:
     cv2.flip(a,0,a)
   cv2.normalize(a, a, 0, 65535, cv2.NORM_MINMAX)
   np.right_shift(a, 8, a)
-  #print(a)
   return np.uint8(a)
 
 if __name__ == '__main__':
