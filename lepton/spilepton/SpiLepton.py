@@ -31,8 +31,8 @@ SPI_MODE_2 = (SPI_CPOL | 0)
 SPI_MODE_3 = (SPI_CPOL | SPI_CPHA)
 
 
-class Lepton(object):
-    """Communication class for FLIR Lepton module on SPI
+class SpiLepton:
+    """Communication class for FLIR SpiLepton module on SPI
 
     Args:
       spi_dev (str): Location of SPI device node. Default '/dev/spidev0.0'.
@@ -49,7 +49,7 @@ class Lepton(object):
 
     def __init__(self, spi_dev="/dev/spidev0.0"):
         self.__spi_dev = spi_dev
-        self.__txbuf = np.zeros(Lepton.VOSPI_FRAME_SIZE, dtype=np.uint16)
+        self.__txbuf = np.zeros(SpiLepton.VOSPI_FRAME_SIZE, dtype=np.uint16)
 
         # struct spi_ioc_transfer {
         #   __u64     tx_buf;
@@ -63,19 +63,19 @@ class Lepton(object):
         # };
         self.__xmit_struct = struct.Struct("=QQIIHBBI")
         self.__msg_size = self.__xmit_struct.size
-        self.__xmit_buf = np.zeros((self.__msg_size * Lepton.ROWS), dtype=np.uint8)
+        self.__xmit_buf = np.zeros((self.__msg_size * SpiLepton.ROWS), dtype=np.uint8)
         self.__msg = _IOW(SPI_IOC_MAGIC, 0, self.__xmit_struct.format)
-        self.__capture_buf = np.zeros((Lepton.ROWS, Lepton.VOSPI_FRAME_SIZE, 1), dtype=np.uint16)
+        self.__capture_buf = np.zeros((SpiLepton.ROWS, SpiLepton.VOSPI_FRAME_SIZE, 1), dtype=np.uint16)
 
-        for i in range(Lepton.ROWS):
+        for i in range(SpiLepton.ROWS):
             self.__xmit_struct.pack_into(self.__xmit_buf, i * self.__msg_size,
                                          self.__txbuf.ctypes.data,  # __u64     tx_buf;
-                                         self.__capture_buf.ctypes.data + Lepton.VOSPI_FRAME_SIZE_BYTES * i,
+                                         self.__capture_buf.ctypes.data + SpiLepton.VOSPI_FRAME_SIZE_BYTES * i,
                                          # __u64     rx_buf;
-                                         Lepton.VOSPI_FRAME_SIZE_BYTES,  # __u32     len;
-                                         Lepton.SPEED,  # __u32     speed_hz;
+                                         SpiLepton.VOSPI_FRAME_SIZE_BYTES,  # __u32     len;
+                                         SpiLepton.SPEED,  # __u32     speed_hz;
                                          0,  # __u16     delay_usecs;
-                                         Lepton.BITS,  # __u8      bits_per_word;
+                                         SpiLepton.BITS,  # __u8      bits_per_word;
                                          1,  # __u8      cs_change;
                                          0)  # __u32     pad;
 
@@ -83,14 +83,14 @@ class Lepton(object):
         # "In Python 3 the only way to open /dev/tty under Linux appears to be 1) in binary mode and 2) with buffering disabled."
         self.__handle = open(self.__spi_dev, "wb+", buffering=0)
 
-        ioctl(self.__handle, SPI_IOC_RD_MODE, struct.pack("=B", Lepton.MODE))
-        ioctl(self.__handle, SPI_IOC_WR_MODE, struct.pack("=B", Lepton.MODE))
+        ioctl(self.__handle, SPI_IOC_RD_MODE, struct.pack("=B", SpiLepton.MODE))
+        ioctl(self.__handle, SPI_IOC_WR_MODE, struct.pack("=B", SpiLepton.MODE))
 
-        ioctl(self.__handle, SPI_IOC_RD_BITS_PER_WORD, struct.pack("=B", Lepton.BITS))
-        ioctl(self.__handle, SPI_IOC_WR_BITS_PER_WORD, struct.pack("=B", Lepton.BITS))
+        ioctl(self.__handle, SPI_IOC_RD_BITS_PER_WORD, struct.pack("=B", SpiLepton.BITS))
+        ioctl(self.__handle, SPI_IOC_WR_BITS_PER_WORD, struct.pack("=B", SpiLepton.BITS))
 
-        ioctl(self.__handle, SPI_IOC_RD_MAX_SPEED_HZ, struct.pack("=I", Lepton.SPEED))
-        ioctl(self.__handle, SPI_IOC_WR_MAX_SPEED_HZ, struct.pack("=I", Lepton.SPEED))
+        ioctl(self.__handle, SPI_IOC_RD_MAX_SPEED_HZ, struct.pack("=I", SpiLepton.SPEED))
+        ioctl(self.__handle, SPI_IOC_WR_MAX_SPEED_HZ, struct.pack("=I", SpiLepton.SPEED))
 
         return self
 
@@ -99,7 +99,7 @@ class Lepton(object):
 
     @staticmethod
     def capture_segment(handle, xs_buf, xs_size, capture_buf):
-        messages = Lepton.ROWS
+        messages = SpiLepton.ROWS
 
         iow = _IOW(SPI_IOC_MAGIC, 0, xs_size)
         ioctl(handle, iow, xs_buf, True)
@@ -109,18 +109,18 @@ class Lepton(object):
 
         messages -= 1
 
-        # NB: the default spidev bufsiz is 4096 bytes so that's where the 24 message limit comes from: 4096 / Lepton.VOSPI_FRAME_SIZE_BYTES = 24.97...
+        # NB: the default spidev bufsiz is 4096 bytes so that's where the 24 message limit comes from: 4096 / SpiLepton.VOSPI_FRAME_SIZE_BYTES = 24.97...
         # This 24 message limit works OK, but if you really need to optimize the read speed here, this hack is for you:
 
         # The limit can be changed when spidev is loaded, but since it is compiled statically into newer raspbian kernels, that means
         # modifying the kernel boot args to pass this option. This works too:
         #   $ sudo chmod 666 /sys/module/spidev/parameters/bufsiz
         #   $ echo 65536 > /sys/module/spidev/parameters/bufsiz
-        # Then Lepton.SPIDEV_MESSAGE_LIMIT of 24 can be raised to 59
+        # Then SpiLepton.SPIDEV_MESSAGE_LIMIT of 24 can be raised to 59
 
         while messages > 0:
-            if messages > Lepton.SPIDEV_MESSAGE_LIMIT:
-                count = Lepton.SPIDEV_MESSAGE_LIMIT
+            if messages > SpiLepton.SPIDEV_MESSAGE_LIMIT:
+                count = SpiLepton.SPIDEV_MESSAGE_LIMIT
             else:
                 count = messages
             iow = _IOW(SPI_IOC_MAGIC, 0, xs_size * count)
@@ -133,7 +133,7 @@ class Lepton(object):
         """Capture a frame of data.
 
         Captures 80x60 uint16 array of non-normalized (raw 12-bit) data. Returns that frame and a frame_id (which
-        is currently just the sum of all pixels). The Lepton will return multiple, identical frames at a rate of up
+        is currently just the sum of all pixels). The SpiLepton will return multiple, identical frames at a rate of up
         to ~27 Hz, with unique frames at only ~9 Hz, so the frame_id can help you from doing additional work
         processing duplicate frames.
 
@@ -147,13 +147,13 @@ class Lepton(object):
         start = time.time()
 
         if data_buffer is None:
-            data_buffer = np.ndarray((Lepton.ROWS, Lepton.COLS, 1), dtype=np.uint16)
-        elif data_buffer.ndim < 2 or data_buffer.shape[0] < Lepton.ROWS or data_buffer.shape[
-            1] < Lepton.COLS or data_buffer.itemsize < 2:
+            data_buffer = np.ndarray((SpiLepton.ROWS, SpiLepton.COLS, 1), dtype=np.uint16)
+        elif data_buffer.ndim < 2 or data_buffer.shape[0] < SpiLepton.ROWS or data_buffer.shape[
+            1] < SpiLepton.COLS or data_buffer.itemsize < 2:
             raise Exception("Provided input array not large enough")
 
         while True:
-            Lepton.capture_segment(self.__handle, self.__xmit_buf, self.__msg_size, self.__capture_buf[0])
+            SpiLepton.capture_segment(self.__handle, self.__xmit_buf, self.__msg_size, self.__capture_buf[0])
             if retry_reset and (self.__capture_buf[
                                     20, 0] & 0xFF0F) != 0x1400:  # make sure that this is a well-formed frame, should find line 20 here
                 # Leave chip select deasserted for at least 185 ms to reset
@@ -170,7 +170,7 @@ class Lepton(object):
 
         if debug_print:
             print("---")
-            for i in range(Lepton.ROWS):
+            for i in range(SpiLepton.ROWS):
                 fid = self.__capture_buf[i, 0, 0]
                 crc = self.__capture_buf[i, 1, 0]
                 fnum = fid & 0xFFF
