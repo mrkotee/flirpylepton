@@ -42,12 +42,12 @@ class Lepton:
 
     def get_image_with_max_temp(self, colormap=cv2.COLORMAP_INFERNO):
         image = self._capture()
-        image = self._get_image(image, colormap)
         temp_map = self._create_temp_map(image)
+        image = self._get_image(image, colormap)
 
         if max_temp := max(temp_map, key=lambda x: x[2]):
             x, y, t = max_temp
-            cv2.putText(image, str(t), (x, y), cv2.FONT_HERSHEY_DUPLEX, 0.2, (255, 255, 255), 1)
+            cv2.putText(image, str(round(t, 1)), (x, y), cv2.FONT_HERSHEY_DUPLEX, 0.2, (255, 255, 255), 1)
 
         return image
 
