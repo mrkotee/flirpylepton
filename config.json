@@ -1,5 +1,7 @@
 {
   "i2c_device": 1,
   "i2c_addr": "2a",
-  "spi_device": 0
+  "spi_device": 0,
+  "a_coefficient": 0.03385,
+  "k_coefficient": 276.96
 }

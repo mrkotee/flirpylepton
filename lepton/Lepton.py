@@ -6,9 +6,11 @@ from .i2cLepton import LeptonI2C
 
 
 class Lepton:
-    def __init__(self, spi_device: int, i2c_device: int, i2c_addr: int):
+    def __init__(self, spi_device: int, i2c_device: int, i2c_addr: int, a_coefficient: float, k_coefficient: float):
         self.lepton_i2c = LeptonI2C(i2c_device, i2c_addr)
         self.lepton_spi = SpiLepton(f"/dev/spidev0.{spi_device}")
+        self.a_coefficient = a_coefficient
+        self.k_coefficient = k_coefficient
 
     def _capture(self):
         with self.lepton_spi:
@@ -21,7 +23,7 @@ class Lepton:
 
         for k1, i in enumerate(image):
             for k2, i2 in enumerate(i):
-                temp_map.append((k1, k2, int(i2[0] * 0.03385 - 276.96) + cam_temp))
+                temp_map.append((k2, k1, int(i2[0] * self.a_coefficient - self.k_coefficient) + cam_temp))
         return temp_map
 
     def get_temperature_map(self):
@@ -47,6 +49,21 @@ class Lepton:
 
         if max_temp := max(temp_map, key=lambda x: x[2]):
             x, y, t = max_temp
+            cv2.putText(image, str(round(t, 1)), (x, y), cv2.FONT_HERSHEY_DUPLEX, 0.2, (255, 255, 255), 1)
+
+        return image
+
+    def get_image_with_min_max_temp(self, colormap=cv2.COLORMAP_INFERNO):
+        image = self._capture()
+        temp_map = self._create_temp_map(image)
+        image = self._get_image(image, colormap)
+
+        if max_temp := max(temp_map, key=lambda x: x[2]):
+            x, y, t = max_temp
+            cv2.putText(image, str(round(t, 1)), (x, y), cv2.FONT_HERSHEY_DUPLEX, 0.2, (255, 255, 255), 1)
+
+        if min_temp := min(temp_map, key=lambda x: x[2]):
+            x, y, t = min_temp
             cv2.putText(image, str(round(t, 1)), (x, y), cv2.FONT_HERSHEY_DUPLEX, 0.2, (255, 255, 255), 1)
 
         return image
